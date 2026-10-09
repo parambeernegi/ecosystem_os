@@ -1,0 +1,30 @@
+// Ecosystem OS's own Prisma schema — points at the SAME Postgres database as
+// launchpad_v5's backend (same DATABASE_URL). It declares only the columns on
+// Startup that Ecosystem OS touches (not a `@relation` to User — this app never
+// needs to join across tables, just read/write one row by id).
+//
+// IMPORTANT: launchpad_v5 remains the sole owner of schema changes for this
+// table. This app must never run `prisma db push` or `prisma migrate` —
+// only `prisma generate` (to produce a typed client from the schema below).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Startup {
+  id            String   @id
+  userId        String
+  name          String
+  problem       String   @default("")
+  solution      String   @default("")
+  segment       String   @default("")
+  stage         String   @default("idea")
+  market        String   @default("new")
+  ecosystemMaps Json     @default("[]")
+  updatedAt     DateTime @updatedAt
+}
