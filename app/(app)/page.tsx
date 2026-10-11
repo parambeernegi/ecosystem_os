@@ -2,7 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ecosystemApi, EcosystemMapData } from '../../lib/api'
-import { LAUNCHPAD_APP_URL } from '../../lib/auth'
+import { LAUNCHPAD_APP_URL, getHiddenPages } from '../../lib/auth'
+
+// launchpad_v5's admin "Plan Features" panel can hide any of these three tabs per plan
+// tier — key here must match the catalog in launchpad_v5's backend/src/config/satelliteNav.ts
+// (SATELLITE_NAV_CATALOG.ecosystemOS). The graph/map view is never hideable.
+const HIDEABLE_TAB_ELEMENT_IDS: Record<string, string[]> = {
+  discovery: ['tab-discovery'],
+  versions: ['tab-versions'],
+  usage: ['sidebar-usage-btn'],
+}
 
 // Ported from launchpad_v5's frontend/src/pages/ecosystem/index.tsx. That page's
 // ~1600-line vanilla-JS engine (ECO_CSS/ECO_HTML/ECO_JS below) never touches React,
@@ -59,6 +68,15 @@ export default function EcosystemMapperPage() {
     const s = dataRef.current.startup
     const hasData = !!(s.name || s.problem || s.solution)
     ;(window as any).setDataSource?.(hasData ? 'auto' : 'manual')
+
+    const hiddenPages = getHiddenPages()
+    for (const [key, elementIds] of Object.entries(HIDEABLE_TAB_ELEMENT_IDS)) {
+      if (!hiddenPages.includes(key)) continue
+      for (const elId of elementIds) {
+        const el = document.getElementById(elId)
+        if (el) el.style.display = 'none'
+      }
+    }
 
     return () => {
       document.body.removeChild(script)
