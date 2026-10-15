@@ -36,6 +36,7 @@ export interface StartupContext {
 export interface EcosystemMapData {
   startup: StartupContext
   ecosystemMaps: unknown[]
+  maxLayers: number
 }
 
 export const ecosystemApi = {

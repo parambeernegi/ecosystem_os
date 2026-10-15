@@ -11,6 +11,7 @@ export interface AuthRequest extends Request {
   userEmail?: string
   userRole?: string
   startupId?: string
+  maxLayers?: number
 }
 
 // Verifies the bridge token minted by launchpad_v5's GET /api/ecosystem-os/bridge
@@ -28,6 +29,9 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     req.userEmail = decoded.email
     req.userRole = decoded.role
     req.startupId = decoded.startupId
+    // Fail-safe default to the most restrictive tier (5 layers) if an older or
+    // otherwise-shaped token doesn't carry this claim, rather than defaulting open.
+    req.maxLayers = typeof decoded.maxLayers === 'number' ? decoded.maxLayers : 5
     next()
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' })

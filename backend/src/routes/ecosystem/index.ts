@@ -20,6 +20,7 @@ router.get('/ecosystem-map', async (req: AuthRequest, res) => {
       segment: startup.segment, stage: startup.stage, market: startup.market,
     },
     ecosystemMaps: startup.ecosystemMaps,
+    maxLayers: req.maxLayers,
   })
 })
 
@@ -35,11 +36,18 @@ router.put('/ecosystem-map', async (req: AuthRequest, res) => {
 // POST /api/ai/raw — generic system+prompt passthrough for the mapper's multi-stage
 // AI generation pipeline. Mirrors launchpad_v5's own /api/ai/raw endpoint exactly
 // (same request/response shape) so the ported ECO_JS engine needed no changes beyond
-// which URL it points at.
-router.post('/ai/raw', async (req, res) => {
+// which URL it points at — plus one addition: an optional `layerCount`, checked
+// against the bridge token's maxLayers before any Claude call is made. The frontend
+// already disables the 10/20 buttons past maxLayers, but that's cosmetic only — this
+// is the actual enforcement, since nothing stops a client from calling this endpoint
+// directly with a hand-crafted "generate 20 layers" prompt otherwise.
+router.post('/ai/raw', async (req: AuthRequest, res) => {
   try {
-    const { system, prompt, maxTokens } = req.body
+    const { system, prompt, maxTokens, layerCount } = req.body
     if (!system || !prompt) return res.status(400).json({ error: 'system and prompt are required' })
+    if (layerCount && Number(layerCount) > (req.maxLayers ?? 5)) {
+      return res.status(402).json({ error: `Your plan is limited to ${req.maxLayers}-layer ecosystem maps. Upgrade to Standard or higher for 10/20-layer depth.` })
+    }
     const cappedTokens = Math.min(Number(maxTokens) || 1200, 4000)
     const msg = await client.messages.create({
       model: MODEL, max_tokens: cappedTokens, system, messages: [{ role: 'user', content: prompt }],

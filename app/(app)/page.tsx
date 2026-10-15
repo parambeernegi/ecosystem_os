@@ -49,6 +49,7 @@ export default function EcosystemMapperPage() {
     if (state !== 'ready' || !dataRef.current) return
 
     ;(window as any).__startupContext = dataRef.current.startup
+    ;(window as any).__maxLayers = dataRef.current.maxLayers
 
     ;(window as any).__ecoBridge = {
       load: () => dataRef.current?.ecosystemMaps || [],
@@ -78,10 +79,27 @@ export default function EcosystemMapperPage() {
       }
     }
 
+    // Lock out layer options past the plan's maxLayers — same "never fully hide a
+    // gated option, show it locked with an upgrade path" convention launchpad_v5 uses.
+    // The 10-layer button is the default `active` one in the static markup above; if
+    // that's locked for this plan, fall back to the 5-layer option so the page never
+    // loads with a locked option selected.
+    const maxLayers = dataRef.current.maxLayers
+    for (const n of [5, 10, 20]) {
+      if (n <= maxLayers) continue
+      const btn = document.getElementById(`layer-btn-${n}`)
+      if (btn) btn.classList.add('locked')
+    }
+    if (maxLayers < 10) {
+      const fiveBtn = document.getElementById('layer-btn-5') as HTMLButtonElement | null
+      fiveBtn?.click()
+    }
+
     return () => {
       document.body.removeChild(script)
       delete (window as any).__ecoBridge
       delete (window as any).__startupContext
+      delete (window as any).__maxLayers
     }
   }, [state])
 
@@ -145,6 +163,8 @@ const ECO_CSS = `
 .layer-btn .lb-title{font-size:12px;font-weight:700;color:var(--navy)}
 .layer-btn .lb-sub{font-size:10px;color:var(--mid)}
 .layer-btn.active .lb-title{color:var(--orange)}
+.layer-btn.locked{cursor:not-allowed;opacity:.55;background:var(--paper)}
+.layer-btn.locked .lb-sub{color:var(--orange);font-weight:700}
 .generate-btn{width:100%;padding:13px;background:var(--orange);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s}
 .generate-btn:hover{background:#E8602A}
 .generate-btn:disabled{background:var(--border);color:var(--mid);cursor:not-allowed}
@@ -438,9 +458,9 @@ const ECO_HTML = `
   <div class="field"><label>Existing Assumptions</label><textarea id="inp-assume" rows="2" placeholder="Any assumptions to consider"></textarea></div>
   <div class="field"><label>Ecosystem Depth</label></div>
   <div class="layer-selector">
-    <button class="layer-btn" onclick="selLayer(5,this)"><div class="lb-icon">🎯</div><div class="lb-title">5 Layers</div><div class="lb-sub">Quick overview</div></button>
-    <button class="layer-btn active" onclick="selLayer(10,this)"><div class="lb-icon">🗺</div><div class="lb-title">10 Layers</div><div class="lb-sub">Standard</div></button>
-    <button class="layer-btn" onclick="selLayer(20,this)"><div class="lb-icon">🌐</div><div class="lb-title">20 Layers</div><div class="lb-sub">Deep analysis</div></button>
+    <button class="layer-btn" id="layer-btn-5" onclick="selLayer(5,this)"><div class="lb-icon">🎯</div><div class="lb-title">5 Layers</div><div class="lb-sub">Quick overview</div></button>
+    <button class="layer-btn active" id="layer-btn-10" onclick="selLayer(10,this)"><div class="lb-icon">🗺</div><div class="lb-title">10 Layers</div><div class="lb-sub">Standard</div></button>
+    <button class="layer-btn" id="layer-btn-20" onclick="selLayer(20,this)"><div class="lb-icon">🌐</div><div class="lb-title">20 Layers</div><div class="lb-sub">Deep analysis</div></button>
   </div>
   <button class="generate-btn" onclick="generateEcosystem()">✨ Generate Ecosystem Map →</button>
   <p style="text-align:center;font-size:12px;color:var(--mid);margin-top:9px">Takes 1–3 minutes.</p>
@@ -795,6 +815,7 @@ function setDataSource(mode){
   window.__dataSourceMode=mode;
 }
 function selLayer(n,btn){
+  if(n>(window.__maxLayers||20)){showToast('Upgrade to Standard or higher to unlock '+n+'-layer depth');return;}
   S.layerCount=n;
   document.querySelectorAll('.layer-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
@@ -804,7 +825,7 @@ async function callClaude(prompt,system,maxTokens){
   maxTokens=maxTokens||2500;
   var payload={
     system:system+'\\n\\nRespond ONLY with valid JSON. No markdown, no backticks, no extra text.',
-    prompt:prompt, maxTokens:maxTokens};
+    prompt:prompt, maxTokens:maxTokens, layerCount:S.layerCount};
   var _startMs=Date.now();
   var _stage=arguments[3]||'';
   var res;
